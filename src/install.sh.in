@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Microsoft Teams 크롬 앱 설치 (사용자 계정용, sudo 불필요). 이 파일 하나만 있으면 된다.
+# Teams 를 크롬 전용 프로필 창으로 띄워 GNOME Dock 에 크롬과 별개의 Teams 아이콘으로 뜨게 한다.
+#
+#   bash teams-chrome-install.sh                설치 + GNOME 즐겨찾기(Dock)에 추가
+#   bash teams-chrome-install.sh --no-pin       설치만
+#   bash teams-chrome-install.sh --uninstall    제거 (로그인 정보가 든 프로필은 남긴다)
+#   bash teams-chrome-install.sh --purge        제거 + 프로필까지 삭제
+#
+# 설치 위치: ~/.local/bin/teams-chrome, ~/.local/share/applications/teams-chrome.desktop,
+#            ~/.local/share/icons/hicolor/256x256/apps/teams-chrome.png
+# 프로필: ~/.config/chrome-teams (snap 크로미움은 ~/snap/chromium/common/chrome-teams)
+set -euo pipefail
+
+VERSION="@VERSION@"
+BIN="$HOME/.local/bin/teams-chrome"
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+DESKTOP="$APPS/teams-chrome.desktop"
+ICON="$ICONS/256x256/apps/teams-chrome.png"
+
+[ "$(id -u)" != 0 ] || { echo "root 가 아니라 Teams 를 쓸 사용자 계정으로 실행하세요." >&2; exit 1; }
+
+refresh() {
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" 2>/dev/null || true
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICONS" 2>/dev/null || true
+}
+
+PIN=1; MODE=install
+case "${1:-}" in
+    "") ;;
+    --no-pin) PIN=0 ;;
+    --uninstall) MODE=uninstall ;;
+    --purge) MODE=purge ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    *) echo "알 수 없는 옵션: $1 (--no-pin, --uninstall, --purge, --help)" >&2; exit 2 ;;
+esac
+
+if [ "$MODE" != install ]; then
+    [ -x "$BIN" ] && "$BIN" --unpin || true
+    rm -f "$BIN" "$DESKTOP" "$ICON"
+    refresh
+    echo "제거했습니다."
+    if [ "$MODE" = purge ]; then
+        rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/chrome-teams" "$HOME/snap/chromium/common/chrome-teams"
+        echo "프로필(로그인 정보)도 지웠습니다."
+    else
+        echo "로그인 정보가 든 프로필 ~/.config/chrome-teams 는 남겨 두었습니다 (지우려면 --purge)."
+    fi
+    exit 0
+fi
+
+mkdir -p "$(dirname "$BIN")" "$APPS" "$(dirname "$ICON")"
+
+base64 -d > "$BIN" <<'B64'
+@LAUNCHER_B64@
+B64
+chmod 755 "$BIN"
+
+base64 -d > "$ICON" <<'B64'
+@ICON_B64@
+B64
+
+# ~/.local/bin 이 PATH 에 없을 수 있어 Exec 는 절대 경로로 적는다.
+base64 -d <<'B64' | sed "s|^Exec=teams-chrome|Exec=$BIN|" > "$DESKTOP"
+@DESKTOP_B64@
+B64
+chmod 644 "$DESKTOP" "$ICON"
+refresh
+
+echo "Microsoft Teams 크롬 앱 $VERSION 설치 완료"
+echo "  실행 파일: $BIN"
+echo "  메뉴 항목: $DESKTOP"
+found=""
+for c in google-chrome-stable google-chrome chromium chromium-browser; do
+    command -v "$c" >/dev/null 2>&1 && { found="$c"; break; }
+done
+[ -n "$found" ] && echo "  브라우저 : $found" \
+    || echo "  주의: Google Chrome 또는 Chromium 이 없습니다. 설치해야 실행됩니다."
+[ "$PIN" = 1 ] && "$BIN" --pin
+echo "앱 목록에서 'Microsoft Teams' 를 실행하세요. 전용 프로필이라 처음 한 번 MS 계정 로그인이 필요합니다."

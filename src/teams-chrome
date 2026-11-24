@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Microsoft Teams 를 크롬 앱 창으로 연다. 전용 프로필로 띄워 크롬과 별개 프로세스가 되므로
+# GNOME Dock 에 크롬이 아니라 Teams 아이콘으로 따로 뜬다.
+#
+#   teams-chrome            Teams 창 열기 (이미 떠 있으면 그 창으로)
+#   teams-chrome --pin      GNOME 즐겨찾기(Dock)에 추가
+#   teams-chrome --unpin    GNOME 즐겨찾기에서 빼기
+#
+# 환경 변수: TEAMS_URL (기본 https://teams.microsoft.com/), TEAMS_BROWSER (브라우저 실행 파일 직접 지정)
+set -euo pipefail
+
+DESKTOP_ID=teams-chrome.desktop
+CLASS=Teams
+URL="${TEAMS_URL:-https://teams.microsoft.com/}"
+
+favorites() {  # favorites add|remove
+    command -v gsettings >/dev/null 2>&1 && gsettings list-schemas 2>/dev/null | grep -qx org.gnome.shell \
+        || { echo "GNOME 즐겨찾기를 찾지 못했습니다 (GNOME 이 아닌 데스크톱). 메뉴에서 직접 고정하세요." >&2; return 0; }
+    python3 - "$1" "$DESKTOP_ID" <<'PY'
+import ast, subprocess, sys
+action, app = sys.argv[1], sys.argv[2]
+cur = ast.literal_eval(subprocess.check_output(["gsettings", "get", "org.gnome.shell", "favorite-apps"], text=True).replace("@as ", ""))
+if action == "add" and app not in cur:
+    i = cur.index("google-chrome.desktop") + 1 if "google-chrome.desktop" in cur else len(cur)
+    cur.insert(i, app)
+elif action == "remove" and app in cur:
+    cur.remove(app)
+else:
+    sys.exit(0)
+subprocess.check_call(["gsettings", "set", "org.gnome.shell", "favorite-apps", str(cur)])
+print(("추가" if action == "add" else "제거") + ": GNOME 즐겨찾기 " + app)
+PY
+}
+
+case "${1:-}" in
+    --pin)   favorites add; exit 0 ;;
+    --unpin) favorites remove; exit 0 ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+esac
+
+browser="${TEAMS_BROWSER:-}"
+if [ -z "$browser" ]; then
+    for c in google-chrome-stable google-chrome chromium chromium-browser; do
+        if command -v "$c" >/dev/null 2>&1; then browser="$(command -v "$c")"; break; fi
+    done
+fi
+[ -n "$browser" ] || { echo "Google Chrome 또는 Chromium 이 없습니다. 먼저 설치하세요." >&2; exit 1; }
+
+# snap 크로미움(우분투의 chromium·chromium-browser)은 숨김 폴더(~/.config)에 쓸 수 없어 snap 전용 폴더에 프로필을 둔다.
+profile="${XDG_CONFIG_HOME:-$HOME/.config}/chrome-teams"
+case "$(basename "$browser")" in
+    chromium*) [ -x /snap/bin/chromium ] && profile="$HOME/snap/chromium/common/chrome-teams" ;;
+esac
+
+exec "$browser" --user-data-dir="$profile" --class="$CLASS" --name="$CLASS" --app="$URL" "$@"
