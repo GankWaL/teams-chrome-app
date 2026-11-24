@@ -2,29 +2,55 @@
 
 Microsoft Teams 를 Chrome/Chromium 앱 창으로 띄우는 런처. 전용 프로필(`~/.config/chrome-teams`)을 써서 크롬과 별개 프로세스로 뜨므로, GNOME Dock 에 크롬 아이콘에 묶이지 않고 **Teams 아이콘으로 따로** 표시된다.
 
-필요한 것: Google Chrome 또는 Chromium. 배포 파일은 `dist/` 에 있다.
+필요한 것: Google Chrome 또는 Chromium, git.
 
 ## 설치
 
 ### A. 설치 스크립트 (권장, sudo 불필요)
 
-`dist/teams-chrome-install.sh` 파일 하나만 옮기면 된다 (아이콘 포함).
+설치 위치는 실행한 사용자 계정 안(`~/.local/bin`, `~/.local/share`)이다.
 
 ```sh
-bash teams-chrome-install.sh                # 설치 + Dock 즐겨찾기에 추가
-bash teams-chrome-install.sh --no-pin       # 설치만
-bash teams-chrome-install.sh --uninstall    # 제거 (로그인 프로필은 남김)
-bash teams-chrome-install.sh --purge        # 제거 + 프로필 삭제
+# 1. 저장소 받기
+git clone git@github.com:GankWaL/teams-chrome-app.git
+# 2. 저장소 폴더로 이동
+cd teams-chrome-app
+# 3. 설치 + Dock 즐겨찾기에 추가 (즐겨찾기 없이 설치만 하려면 --no-pin)
+bash dist/teams-chrome-install.sh
+# 4. 앱 목록에서 "Microsoft Teams" 실행 → 처음 한 번 MS 계정 로그인
 ```
 
-설치 위치는 그 사용자 계정 안(`~/.local/bin`, `~/.local/share`)이다.
+제거:
+
+```sh
+cd teams-chrome-app
+bash dist/teams-chrome-install.sh --uninstall   # 제거 (로그인 프로필은 남김)
+bash dist/teams-chrome-install.sh --purge       # 제거 + 프로필 삭제
+```
+
+설치 후에는 저장소 폴더를 지워도 된다. `dist/teams-chrome-install.sh` 파일 하나만 다른 PC 로 복사해 `bash teams-chrome-install.sh` 로 설치해도 된다 (아이콘 포함).
 
 ### B. .deb 패키지 (PC 의 모든 사용자에게)
 
 ```sh
-sudo apt install ./teams-chrome-app_1.0.0_all.deb
-teams-chrome --pin                          # 각 사용자가 Dock 즐겨찾기에 추가 (선택)
-sudo apt remove teams-chrome-app            # 제거
+# 1. 저장소 받기
+git clone git@github.com:GankWaL/teams-chrome-app.git
+# 2. 저장소 폴더로 이동
+cd teams-chrome-app
+# 3. 패키지 설치
+sudo apt install ./dist/teams-chrome-app_1.0.0_all.deb
+# 4. 사용자마다 Dock 즐겨찾기에 추가 (선택)
+teams-chrome --pin
+```
+
+제거: `sudo apt remove teams-chrome-app`
+
+### 업데이트
+
+```sh
+cd teams-chrome-app
+git pull
+bash dist/teams-chrome-install.sh               # .deb 로 설치했다면 sudo apt install ./dist/teams-chrome-app_<버전>_all.deb
 ```
 
 ## 사용
